@@ -532,6 +532,7 @@ LIBBPF_API int ring_buffer__add(struct ring_buffer *rb, int map_fd,
 				ring_buffer_sample_fn sample_cb, void *ctx);
 LIBBPF_API int ring_buffer__poll(struct ring_buffer *rb, int timeout_ms);
 LIBBPF_API int ring_buffer__consume(struct ring_buffer *rb);
+LIBBPF_API int ring_buffer__get_epoll_fd(struct ring_buffer *rb);
 
 /* Perf buffer APIs */
 struct perf_buffer;
@@ -590,6 +591,7 @@ perf_buffer__new_raw(int map_fd, size_t page_cnt,
 LIBBPF_API void perf_buffer__free(struct perf_buffer *pb);
 LIBBPF_API int perf_buffer__poll(struct perf_buffer *pb, int timeout_ms);
 LIBBPF_API int perf_buffer__consume(struct perf_buffer *pb);
+LIBBPF_API int perf_buffer__get_epoll_fd(struct perf_buffer *pb);
 
 typedef enum bpf_perf_event_ret
 	(*bpf_perf_event_print_t)(struct perf_event_header *hdr,

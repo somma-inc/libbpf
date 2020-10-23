@@ -266,6 +266,11 @@ int ring_buffer__consume(struct ring_buffer *rb)
 	return res;
 }
 
+int ring_buffer__get_epoll_fd(struct ring_buffer *rb)
+{
+	return rb->epoll_fd;
+}
+
 /* Poll for available data and consume records, if any are available.
  * Returns number of records consumed, or negative number, if any of the
  * registered callbacks returned error.

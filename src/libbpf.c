@@ -8868,6 +8868,11 @@ int perf_buffer__consume(struct perf_buffer *pb)
 	return 0;
 }
 
+int perf_buffer__get_epoll_fd(struct perf_buffer* bp)
+{
+	return bp->epoll_fd;
+}
+
 struct bpf_prog_info_array_desc {
 	int	array_offset;	/* e.g. offset of jited_prog_insns */
 	int	count_offset;	/* e.g. offset of jited_prog_len */
