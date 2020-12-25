@@ -641,6 +641,9 @@ bpf_object__init_prog_names(struct bpf_object *obj)
 
 static __u32 get_kernel_version(void)
 {
+#ifdef BUILD_MONSTER
+	return LINUX_VERSION_CODE;
+#else
 	__u32 major, minor, patch;
 	struct utsname info;
 
@@ -648,6 +651,7 @@ static __u32 get_kernel_version(void)
 	if (sscanf(info.release, "%u.%u.%u", &major, &minor, &patch) != 3)
 		return 0;
 	return KERNEL_VERSION(major, minor, patch);
+#endif
 }
 
 static const struct btf_member *
@@ -3413,10 +3417,13 @@ bpf_object__probe_loading(struct bpf_object *obj)
 	/* make sure basic loading works */
 
 	memset(&attr, 0, sizeof(attr));
-	attr.prog_type = BPF_PROG_TYPE_SOCKET_FILTER;
+	attr.prog_type = BPF_PROG_TYPE_KPROBE;
 	attr.insns = insns;
 	attr.insns_cnt = ARRAY_SIZE(insns);
 	attr.license = "GPL";
+#ifdef BUILD_MONSTER
+	attr.kern_version = obj->kern_version;
+#endif
 
 	ret = bpf_load_program_xattr(&attr, NULL, 0);
 	if (ret < 0) {
@@ -3446,11 +3453,14 @@ bpf_object__probe_name(struct bpf_object *obj)
 	/* make sure loading with name works */
 
 	memset(&attr, 0, sizeof(attr));
-	attr.prog_type = BPF_PROG_TYPE_SOCKET_FILTER;
+	attr.prog_type = BPF_PROG_TYPE_KPROBE;
 	attr.insns = insns;
 	attr.insns_cnt = ARRAY_SIZE(insns);
 	attr.license = "GPL";
 	attr.name = "test";
+#ifdef BUILD_MONSTER
+	attr.kern_version = obj->kern_version;
+#endif
 	ret = bpf_load_program_xattr(&attr, NULL, 0);
 	if (ret >= 0) {
 		obj->caps.name = 1;
@@ -3492,10 +3502,13 @@ bpf_object__probe_global_data(struct bpf_object *obj)
 	insns[0].imm = map;
 
 	memset(&prg_attr, 0, sizeof(prg_attr));
-	prg_attr.prog_type = BPF_PROG_TYPE_SOCKET_FILTER;
+	prg_attr.prog_type = BPF_PROG_TYPE_KPROBE;
 	prg_attr.insns = insns;
 	prg_attr.insns_cnt = ARRAY_SIZE(insns);
 	prg_attr.license = "GPL";
+#ifdef BUILD_MONSTER
+	prg_attr.kern_version = obj->kern_version;
+#endif
 
 	ret = bpf_load_program_xattr(&prg_attr, NULL, 0);
 	if (ret >= 0) {
@@ -3628,6 +3641,9 @@ bpf_object__probe_exp_attach_type(struct bpf_object *obj)
 	attr.insns = insns;
 	attr.insns_cnt = ARRAY_SIZE(insns);
 	attr.license = "GPL";
+#ifdef BUILD_MONSTER
+	attr.kern_version = obj->kern_version;
+#endif
 
 	fd = bpf_load_program_xattr(&attr, NULL, 0);
 	if (fd >= 0) {
