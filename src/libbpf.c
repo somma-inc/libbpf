@@ -56,6 +56,8 @@
 #include "libbpf_internal.h"
 #include "hashmap.h"
 
+#include "libbpf-compat.h"
+
 /* make sure libbpf doesn't use kernel-only integer typedefs */
 #pragma GCC poison u8 u16 u32 u64 s8 s16 s32 s64
 
@@ -7689,6 +7691,12 @@ struct bpf_link {
 	char *pin_path;		/* NULL, if not pinned */
 	int fd;			/* hook FD, -1 if not applicable */
 	bool disconnected;
+	union {
+		struct {
+			char *func_name;
+			bool is_kretprobe;
+		} kprobe;
+	};
 };
 
 /* Replace link's underlying BPF program with the new one */
@@ -7725,6 +7733,10 @@ int bpf_link__destroy(struct bpf_link *link)
 		link->destroy(link);
 	if (link->pin_path)
 		free(link->pin_path);
+	if (link->kprobe.func_name) {
+		remove_kprobe_event(link->kprobe.func_name, link->kprobe.is_kretprobe);
+		free(link->kprobe.func_name);
+	}
 	free(link);
 
 	return err;
@@ -7949,12 +7961,22 @@ static int perf_event_open_probe(bool uprobe, bool retprobe, const char *name,
 	type = uprobe ? determine_uprobe_perf_type()
 		      : determine_kprobe_perf_type();
 	if (type < 0) {
-		pr_warn("failed to determine %s perf type: %s\n",
-			uprobe ? "uprobe" : "kprobe",
-			libbpf_strerror_r(type, errmsg, sizeof(errmsg)));
-		return type;
+		if (uprobe) {
+			pr_warn("failed to determine %s perf type: %s\n",
+				uprobe ? "uprobe" : "kprobe",
+				libbpf_strerror_r(type, errmsg, sizeof(errmsg)));
+			return type;
+		} else {
+			if (attach_kprobe_legacy(&attr, name, retprobe) < 0)
+				return -1;
+		}
+	} else {
+		attr.size = sizeof(attr);
+		attr.type = type;
+		attr.config1 = ptr_to_u64(name); /* kprobe_func or uprobe_path */
+		attr.config2 = offset;		 /* kprobe_addr or probe_offset */
 	}
-	if (retprobe) {
+	if (!is_kprobe_legacy && retprobe) {
 		int bit = uprobe ? determine_uprobe_retprobe_bit()
 				 : determine_kprobe_retprobe_bit();
 
@@ -7966,10 +7988,6 @@ static int perf_event_open_probe(bool uprobe, bool retprobe, const char *name,
 		}
 		attr.config |= 1 << bit;
 	}
-	attr.size = sizeof(attr);
-	attr.type = type;
-	attr.config1 = ptr_to_u64(name); /* kprobe_func or uprobe_path */
-	attr.config2 = offset;		 /* kprobe_addr or probe_offset */
 
 	/* pid filter is meaningful only for uprobes */
 	pfd = syscall(__NR_perf_event_open, &attr,
@@ -8013,6 +8031,12 @@ struct bpf_link *bpf_program__attach_kprobe(struct bpf_program *prog,
 			libbpf_strerror_r(err, errmsg, sizeof(errmsg)));
 		return link;
 	}
+
+	if (is_kprobe_legacy) {
+		link->kprobe.func_name    = strdup(func_name);
+		link->kprobe.is_kretprobe = retprobe;
+	}
+
 	return link;
 }
 
