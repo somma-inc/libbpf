@@ -224,6 +224,7 @@ struct bpf_program {
 	char *name;
 	int prog_ifindex;
 	char *section_name;
+	char *section_name_fixed;
 	const struct bpf_sec_def *sec_def;
 	/* section_name with / replaced by _; makes recursive pinning
 	 * in bpf_object__pin_programs easier
@@ -488,6 +489,9 @@ static void bpf_program__exit(struct bpf_program *prog)
 	zfree(&prog->insns);
 	zfree(&prog->reloc_desc);
 
+	if (prog->section_name_fixed != prog->section_name)
+		zfree(&prog->section_name_fixed);
+
 	prog->nr_reloc = 0;
 	prog->insns_cnt = 0;
 	prog->idx = -1;
@@ -524,6 +528,10 @@ bpf_program__init(void *data, size_t size, char *section_name, int idx,
 			idx, section_name);
 		goto errout;
 	}
+
+	if (strncmp(section_name, "kprobe/", sizeof("kprobe/") - 1) == 0 ||
+	    strncmp(section_name, "kretprobe/", sizeof("kretprobe/") - 1) == 0)
+	    prog->section_name_fixed = kallsyms_fix_symbol(prog->section_name);
 
 	prog->pin_name = __bpf_program__pin_name(prog);
 	if (!prog->pin_name) {
@@ -6698,8 +6706,10 @@ const char *bpf_program__title(const struct bpf_program *prog, bool needs_copy)
 {
 	const char *title;
 
-	title = prog->section_name;
+	title = prog->section_name_fixed;
+
 	if (needs_copy) {
+		/* /proc/kallsyms -> func_name.isra.# */
 		title = strdup(title);
 		if (!title) {
 			pr_warn("failed to strdup program title\n");

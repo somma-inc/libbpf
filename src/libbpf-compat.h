@@ -1,6 +1,9 @@
 #ifndef _LIBBPF_COMPAT_H_
 #define _LIBBPF_COMPAT_H_
 
+#include <string.h>
+#include <stdio.h>
+
 static bool is_kprobe_legacy = false;
 
 static int poke_kprobe_events(bool add, const char* name, bool ret) {
@@ -95,6 +98,48 @@ err_out:
 		fclose(f);
 	remove_kprobe_event(func_name, is_kretprobe);
 	return -1;
+}
+
+static char *kallsyms_fix_symbol(char *section_name)
+{
+	char addr[17], T, symbol[128], fix[128];
+	char *fname = strchr(section_name, '/');
+	char *ret = section_name;
+	FILE *fp;
+	int fname_len, section_len;
+	bool found = false;
+
+	if (fname == NULL)
+		return ret;
+
+	fname_len = strlen(fname + 1);
+
+	fp = fopen("/proc/kallsyms", "r");
+
+	if (fp == NULL)
+		return ret;
+
+	while (fscanf(fp, "%16s %c %127s\n", addr, &T, symbol) != EOF) {
+		if (T == 'T' || T == 't') {
+			if (strncmp(fname + 1, symbol, fname_len) == 0) {
+				if (strncmp(symbol + fname_len, ".isra.", sizeof(".isra.") - 1) == 0) {
+					found = true;
+					break;
+				}
+			}
+		}
+	}
+
+	fclose(fp);
+
+	if (found) {
+		section_len = (fname + 1) - section_name;
+		memcpy(fix, section_name, section_len);
+		snprintf(fix + section_len, sizeof(fix) - section_len, "%s", symbol);
+		ret = strdup(fix);
+	}
+
+	return ret;
 }
 
 #endif
