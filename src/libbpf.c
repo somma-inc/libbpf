@@ -473,6 +473,8 @@ void bpf_program__unload(struct bpf_program *prog)
 
 static void bpf_program__exit(struct bpf_program *prog)
 {
+	char *section_name;
+
 	if (!prog)
 		return;
 
@@ -481,6 +483,7 @@ static void bpf_program__exit(struct bpf_program *prog)
 
 	prog->priv = NULL;
 	prog->clear_priv = NULL;
+	section_name = prog->section_name;
 
 	bpf_program__unload(prog);
 	zfree(&prog->name);
@@ -489,7 +492,7 @@ static void bpf_program__exit(struct bpf_program *prog)
 	zfree(&prog->insns);
 	zfree(&prog->reloc_desc);
 
-	if (prog->section_name_fixed != prog->section_name)
+	if (prog->section_name_fixed != section_name)
 		zfree(&prog->section_name_fixed);
 
 	prog->nr_reloc = 0;
